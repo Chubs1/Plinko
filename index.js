@@ -10,6 +10,11 @@ let accumulator = 0;
 let lastTime = null;
 let id = 0
 
+let rows = 12
+let circleRadius = 5
+let verticalGap = 50
+let horizontalGap = 50
+
 ballList = []
 pegList = []
 triggerList = []
@@ -347,10 +352,7 @@ const spawnBall = ({position = {x:halfway, y:distanceFromTop}, radius = 25, colo
 
 animate()
 
-let rows = 12
-    let circleRadius = 5
-    verticalGap = 50
-    horizontalGap = 50
+
     
 for (let row = 1; row < rows; row++) {
     const numCircles = 1 + row * 2; // 1, 3, 5, 7, 9...
