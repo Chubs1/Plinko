@@ -10,39 +10,8 @@ let accumulator = 0;
 let lastTime = null;
 let id = 0
 
-let rows = 3
-let circleRadius = 5
-let verticalGap = 50
-let horizontalGap = 50
-
-ballList = []
-pegList = []
-triggerList = []
-triggerPositions = []
-// add 120 for the rows or just (gap + radius) * 2 of pegs
-
-const silver = (that = {position: {x:halfway, y:distanceFromTop}}, randomVelocity = {x:50, y:30}) => {
-    // that is the trigger it came form
-    return {position: {
-        x: that.position.x,
-        y: that.position.y
-    },
-
-    velocity:{
-        x:0,
-        y:-150
-    },
-    color: "silver",
-    randomVelocity: randomVelocity,
-    collision: false,
-    ghostTime: 0.5
-}
-}
-
-// TK Change collision to be based on pegs and triggers isntead of just pegs like it is now
-
 class ball {
-    constructor({position, radius, color, gravity,velocity, bouncy, randomPosition, 
+    constructor({position, radius, color, gravity,velocity, bouncy, randomPosition,
         randomVelocity,damage, id, collision, ghostTime}) {
         this.position = position
         this.radius = radius
@@ -97,14 +66,17 @@ class peg {
 }
 
 class trigger {
-    constructor({position, radius = 20, color = 'red', enabled = true, cooldown}) {
+    constructor({position, radius, color, disabledColor, enabled, cooldown, maxHealth}) {
         this.position = position
         this.radius = radius
         this.color = color
+        this.disabledColor = disabledColor
         this.currentColor = color
         this.enabled = enabled
         this.cooldown = cooldown
         this.ballsInside = new Set()
+        this.maxHealth = maxHealth
+        this.health = maxHealth
     }
 
     draw() {
@@ -115,32 +87,69 @@ class trigger {
         c.stroke()
     }
 
+    defaultAct() {
+        this.health = this.maxHealth
+        disableTrigger(this)
+    }
 
-}
-
-class healthTrigger extends trigger {
     
 
-    constructor({position, radius, color, enabled, cooldown, maxHealth, health}) {
-        super({position, radius, color, enabled, cooldown})
-        this.maxHealth = maxHealth
-        this.health = health
-    }
+}
+
+class silverMineTrigger extends trigger {
+    constructor ({position, radius, color, disabledColor, enabled, cooldown, maxHealth}) {
+        super({position, radius, color, disabledColor,enabled , cooldown, maxHealth})
+    
+    }  
 
     act() {
-        this.health = this.maxHealth
-        this.ballsInside.add(spawnBall(silver(this)).id)
+        this.ballsInside.add(spawnBall(silver({position: this.position})).id)
     }
 
-    draw() {
-        c.beginPath();
-        c.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2); // Full circle (0 to 2π)
-        c.fillStyle = this.currentColor; // Set fill color
-        c.fill(); // Fill the circle
-        c.stroke()
+    
+    
+}
+
+
+class exampleTrigger extends trigger { 
+    constructor ({position, radius, color, disabledColor, enabled, cooldown, maxHealth}) {
+        super({position, radius, color, disabledColor,enabled , cooldown, maxHealth})
+    
+    }   
+
+    act() {
+        
     }
+}
+
+ballList = []
+pegList = []
+triggerList = []
+triggerPositions = []
+triggerPositions[0] = []
+
+
+allTriggers = {
+    silverMineTrigger,
 
 }
+
+allBalls = {
+
+}
+
+const silver = ({position = {x:halfway, y:distanceFromTop}, randomVelocity = {x:50, y:30}, velocity = {x:0, y:-150}, color = "silver", collision = false, ghostTime = 0.5}) => {
+    return {position, 
+    velocity, 
+    color,
+    randomVelocity,
+    collision,
+    ghostTime
+}
+}
+
+// TK Change collision to be based on pegs and triggers isntead of just pegs like it is now
+
 
 const updateBalls = () => {
     for (let ball in ballList){
@@ -173,11 +182,11 @@ const updateGame = () => {
 
 const cleanUp = () => {
     for(let ball in ballList){
-        if(ballList[ball].position.y > canvas.height || ballList[ball].position.y < 0){
+        if(ballList[ball].position.y > canvas.height || ballList[ball].position.y < 0 || ballList[ball].position.x > canvas.width || ballList[ball].position.x < 0){
             ballList.splice(ball,1)
         }
     }
-    
+   
 }
 
 const animate = (time) => {
@@ -185,9 +194,9 @@ const animate = (time) => {
     if (lastTime != null) {
         const deltaTime = (time - lastTime) / 1000
         lastTime = time
-        
+       
         accumulator += deltaTime;
-        
+       
 
         while (accumulator >= FIXED_TIMESTEP) {
             updateGame()
@@ -195,24 +204,23 @@ const animate = (time) => {
         }
 
         renderGame()
-    } 
-    else 
+    }
+    else
     {
         lastTime = time
     }
-    
+   
 }
 
 const renderGame = () => {
-    c.clearRect(0,0,canvas.width, canvas.height)
     c.fillStyle = "grey"
     c.fillRect(0,0, canvas.width, canvas.height)
-    updateGame()    
+    updateGame()
 }
 
 const disableTrigger = (trigger) => {
     trigger.enabled = false
-    trigger.currentColor = `dark${trigger.color}`
+    trigger.currentColor = trigger.disabledColor
     setTimeout(() => {
         trigger.enabled = true
         trigger.currentColor = trigger.color
@@ -226,40 +234,37 @@ const getDistance = (obj1, obj2) => {
     return distance = Math.sqrt(dx * dx + dy * dy);
 }
 
-const healthTriggerCollisionHelper = (ball, trigger) => {
+const triggerCollisionHelper = (ball, trigger) => {
 
-            console.log("hit")
             trigger.health -= ball.damage
-            if(trigger.health <= 0) {trigger.act()}
+            if(trigger.health <= 0) {
+                trigger.act()
+                trigger.defaultAct()
+            }
          
-        
+       
 }
 
 const handleTriggerCollision = (ball, triggerList) => {
     for(let trigger in triggerList){
-        
+       
         trigger = triggerList[trigger]
         if(trigger.enabled){
 
-        
-            if (getDistance(ball, trigger) <= trigger.radius + ball.radius ) { 
+       
+            if (getDistance(ball, trigger) <= trigger.radius + ball.radius ) {
                 if(!trigger.ballsInside.has(ball.id)){
                     trigger.ballsInside.add(ball.id);
-                    if(trigger instanceof healthTrigger){
-                        healthTriggerCollisionHelper(ball, trigger)
-                    
-                    } 
-                    else {
-                        disableTrigger(trigger)
-                    }
-                } 
+                        triggerCollisionHelper(ball, trigger)
+                }
                 if(trigger.ballsInside.size > 0){
-                    trigger.currentColor = `dark${trigger.color}`
+                    
+                    //TK it is being hit so animation of somekind
                 }
             } else {
                 if(trigger.ballsInside.has(ball.id)){
                     console.log(trigger.ballsInside)
-                    trigger.ballsInside.delete(ball.id) //left
+                    trigger.ballsInside.delete(ball.id)
                     if(trigger.ballsInside.size == 0){
                         trigger.currentColor = trigger.color
                     }
@@ -267,12 +272,12 @@ const handleTriggerCollision = (ball, triggerList) => {
             }
         }
     }
-        
+       
 }
 
 
 const handlePegCollision = (ball, pegList) => {
-    
+   
     for(let peg in pegList){
         peg = pegList[peg]
         const dx = ball.position.x - peg.position.x;
@@ -282,13 +287,13 @@ const handlePegCollision = (ball, pegList) => {
             // Normalize the collision vector
             const normalX = dx / distance;
             const normalY = dy / distance;
-      
+     
             // Reflect the velocity
-            
+           
             const dotProduct = ball.velocity.x * normalX + ball.velocity.y * normalY;
             ball.velocity.x -= 2 * dotProduct * normalX * ball.bouncy.x;
             ball.velocity.y -= 2 * dotProduct * normalY * ball.bouncy.y
-      
+     
             // Reposition moving circle to prevent overlap
             const overlap = peg.radius + ball.radius - distance;
             ball.position.x += normalX * overlap;
@@ -300,17 +305,17 @@ const handlePegCollision = (ball, pegList) => {
 
 }
 
-const spawnBall = ({position = {x:halfway, y:distanceFromTop}, radius = 25, color = "green", 
-    gravity = 0.7, velocity = {x:0,y:0}, 
-    bouncy = {x:0.75, y:0.75}, randomPosition = {x:20, y:0}, 
+const spawnBall = ({position = {x:halfway, y:distanceFromTop}, radius = 25, color = "green",
+    gravity = 0.7, velocity = {x:0,y:0},
+    bouncy = {x:0.75, y:0.75}, randomPosition = {x:20, y:0},
     randomVelocity = {x:0,y:0}, damage = 1, collision = true,
     ghostTime = 0.5
 } = {}
 ) => {
         let randomPosX = Math.random() * randomPosition.x - (randomPosition.x/2);
         let randomPosY = Math.random() * randomPosition.y - (randomPosition.y/2);
-        let randomVelX = Math.random() * randomVelocity.x - (randomVelocity.x/2); 
-        let randomVelY = Math.random() * randomVelocity.y - (randomVelocity.y/2); 
+        let randomVelX = Math.random() * randomVelocity.x - (randomVelocity.x/2);
+        let randomVelY = Math.random() * randomVelocity.y - (randomVelocity.y/2);
         const currentBall = new ball(
             {
                 position: {
@@ -334,85 +339,111 @@ const spawnBall = ({position = {x:halfway, y:distanceFromTop}, radius = 25, colo
                 id: id++,
                 collision,
             }
-            
+           
         )
     ballList.push(currentBall)
     setTimeout(() => {
 
         currentBall.collision = true
     }, ghostTime * 1000)
-    
+   
    
    return currentBall
-} 
-
-
-
-
-
-animate()
-
-
-    
-for (let row = 1; row < rows; row++) {
-    const numCircles = 1 + row * 2; // 1, 3, 5, 7, 9...
-    const rowY =  distanceFromTop + row * (2 * circleRadius + verticalGap); // Calculate the y position for the row
-    const rowWidth = numCircles * (2 * circleRadius + horizontalGap) - horizontalGap; // Total width of the row
-    const startX = halfway - rowWidth / 2 + circleRadius; // Starting x position for the row
-
-    for (let col = 0; col < numCircles; col++) {
-      let circleX = startX + col * (2 * circleRadius + horizontalGap);
-        if(col % 2 == 0){
-      pegList.push(new peg(
-        {
-            position: {
-                x:circleX,
-                y:rowY
-            },
-            radius: circleRadius,
-            color: "blue",
-
-        }
-        
-    ))
 }
+
+const showTriggerSpots = () => {
+
+let currentPositions = triggerPositions.map(array => array.filter(obj => !obj.occupied))
+
+currentPositions.forEach((row, rowIndex) => {
+
+row.forEach((value, colIndex) => {
+position = currentPositions[rowIndex][colIndex].position
+       c.beginPath();
+        c.arc(position.x, this.position.y, 10, 0, Math.PI * 2); // Full circle (0 to 2π)
+        c.fillStyle = "black"; // Set fill color
+        c.fill(); // Fill the circle
+        c.stroke()
+
+
+})
+
+
+})
+
+}
+
+const createTrigger = ({positionIndex, radius = 20, color = 'red', disabledColor = 'darkred', enabled = true, cooldown = 5, maxHealth = 1, trigger = "silverMineTrigger"}) => {
+    const TriggerClass = allTriggers[trigger]
+    triggerList.push(new TriggerClass({
+    position: triggerPositions[positionIndex.row][positionIndex.col].position,
+    radius,
+    color,
+    disabledColor,
+    enabled,
+    cooldown,
+    maxHealth,
+    health: maxHealth
+
+
+}))
+triggerPositions[positionIndex.row][positionIndex.col].occupied = true
+}
+
+const createPegs = ({rows, circleRadius, verticalGap, horizontalGap, pegMap}) => {
+    if(pegMap == "triangle") {
+    for (let row = 1; row < rows; row++) {
+        triggerPositions[row] = []
+            const numCircles = 1 + row * 2; // 1, 3, 5, 7, 9...
+            const rowY =  distanceFromTop + row * (2 * circleRadius + verticalGap); // Calculate the y position for the row
+            const rowWidth = numCircles * (2 * circleRadius + horizontalGap) - horizontalGap; // Total width of the row
+            const startX = halfway - rowWidth / 2 + circleRadius; // Starting x position for the row
+        
+            for (let col = 0; col < numCircles; col++) {
+              let circleX = startX + col * (2 * circleRadius + horizontalGap);
+                if(col % 2 == 0){
+              pegList.push(new peg(
+                {
+                    position: {
+                        x:circleX,
+                        y:rowY
+                    },
+                    radius: circleRadius,
+                    color: "blue",
+        
+                }
+               
+            ))
+        } else {
+        triggerPositions[row-1][Math.floor(col/2)] = ({position: {
+                        x:circleX,
+                        y:rowY
+                           },
+        occupied: false
+        }
+           )
+        
+        }
+            }
+          }
     }
-  }
-  
+}
+
 
 
 canvas.addEventListener('click', event=> {
     spawnBall()
-    console.log(ballList)
 })
 
 
-triggerList.push(new healthTrigger({
-    position: {
-        x: halfway + (2 * circleRadius + horizontalGap) * 0,
-        y: distanceFromTop + (2*circleRadius + verticalGap) + (2*circleRadius + verticalGap) * 0,
-    },
-    cooldown: 1,
+createPegs({rows: 12, circleRadius: 5, verticalGap: 50 , horizontalGap: 50, pegMap: "triangle"})
+createTrigger({
+    positionIndex: {
+        row: 1, 
+        col: 0
+    }, 
+    cooldown: 5, 
     maxHealth: 5,
-    health: 5
-}))
-
-triggerList.push(new healthTrigger({
-    position: {
-        x: halfway +(2 * circleRadius + horizontalGap) * -1,
-        y: distanceFromTop + (2*circleRadius + verticalGap) + (2*circleRadius + verticalGap)* 1,
-    },
-    cooldown: 1,
-    maxHealth: 5,
-    health: 5
-}))
-
-triggerList.push(new healthTrigger({
-    position: {
-        x: halfway  + (2 * circleRadius + horizontalGap) * 1, 
-        y: distanceFromTop + (2*circleRadius + verticalGap) + (2*circleRadius + verticalGap) * 1,
-    },
-    cooldown: 1,
-    maxHealth: 5,
-    health: 5
-}))
+    trigger: "silverMineTrigger"
+})
+animate()
