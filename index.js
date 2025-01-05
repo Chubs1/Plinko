@@ -10,7 +10,7 @@ let accumulator = 0;
 let lastTime = null;
 let id = 0
 
-let rows = 12
+let rows = 3
 let circleRadius = 5
 let verticalGap = 50
 let horizontalGap = 50
